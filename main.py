@@ -18,6 +18,7 @@ from steam.enums import EResult
 from gevent.lock import Semaphore
 from urllib.parse import urlparse
 from steam.client import SteamClient
+from steam.client.cdn import CDNClient
 from steam.exceptions import SteamError
 from requests.adapters import HTTPAdapter
 from multiprocessing.pool import ThreadPool
@@ -421,7 +422,12 @@ class DepotDownloader:
                     cdn_auth_token.expiration_time = 0
                     cdn_auth_token.eresult = EResult.OK
                 else:
-                    cdn_auth_token = self.client.get_cdn_auth_token(self.depot_id, hostname)
+                    cdn = CDNClient(self.client)
+                    cdn_auth_token = CMsgClientGetCDNAuthTokenResponse()
+                    token = cdn.get_cdn_auth_token(0, self.depot_id, hostname)
+                    cdn_auth_token.token = token
+                    cdn_auth_token.expiration_time = cdn.cdn_auth_tokens[0][self.depot_id][hostname]['expiration_time']
+                    cdn_auth_token.eresult = cdn.cdn_auth_tokens[0][self.depot_id][hostname]['eresult']
                 self.log.debug('Server: %s, Token: %s, expiration_time: %s, eresult: %s' % (
                     server_address,
                     cdn_auth_token.token,
@@ -453,7 +459,7 @@ def get_manifest_path_depot_key_dict(path):
         if file.is_file():
             if file.suffix == '.manifest':
                 manifest_path_list.append(file)
-            elif file.name == 'config.vdf':
+            elif file.suffix == '.vdf':
                 with file.open() as f:
                     d = vdf.load(f)
                 depots = d.get('depots')
